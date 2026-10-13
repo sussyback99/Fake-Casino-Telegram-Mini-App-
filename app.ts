@@ -24,6 +24,7 @@ if (tg) {
   tg.expand();
   tg.setHeaderColor?.('#1a1a2e');
 }
+
 interface SymbolInfo {
   icon: string;
   weight: number;
@@ -47,7 +48,6 @@ const SYMBOLS: SymbolInfo[] = [
 
 const STORAGE_KEY = 'casino_state_v2';
 const DEFAULT_BALANCE = 1000;
-
 interface BonusEffect {
   type: string;
   value?: number;
@@ -75,6 +75,7 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'banana_boost', icon: '🍌', name: 'Банановый Бум', desc: 'Добавляет +15% шанс на выигрышную пару', price: 180, rarity: 'common', effect: { type: 'pair_boost', value: 1.15 } },
   { id: 'prosecutor_bribe', icon: '💸', name: 'Взятка прокурору', desc: 'Удлиняет таймер текущего/нового займа на +60 сек', price: 350, rarity: 'rare', effect: { type: 'extend_timer', value: 60 } }
 ];
+
 interface CasinoState {
   balance: number;
   inventory: Record<string, number>;
@@ -313,6 +314,7 @@ function showResult(text: string, type: 'win' | 'lose'): void {
   resultEl.textContent = text;
   resultEl.className = 'result ' + type;
 }
+
 function renderShop(): void {
   shopEl.innerHTML = '';
   SHOP_ITEMS.forEach(item => {
@@ -420,90 +422,6 @@ function useItem(item: ShopItem): void {
   tg?.HapticFeedback?.impactOccurred('light');
   (document.querySelector('.tab[data-tab="slot"]') as HTMLElement).click();
 }
-function calculateLoanTime(amount: number): number {
-  let baseSeconds = 110;
-  if (amount > 100) {
-    baseSeconds += Math.floor((amount - 100) / 100) * 20;
-  }
-  return baseSeconds;
-}
-
-loanAmountInput.addEventListener('input', () => {
-  const amount = Number(loanAmountInput.value) || 0;
-  const totalSeconds = calculateLoanTime(amount);
-  const displayMin = Math.floor(totalSeconds / 60);
-  const displaySec = totalSeconds % 60;
-  loanTimeHint.textContent = `Вам будет дано: ${displayMin} мин ${displaySec} сек`;
-});
-
-btnTakeLoan.addEventListener('click', () => {
-  const amount = Math.min(500, Math.max(10, Number(loanAmountInput.value) || 100));
-  state.activeLoan = amount;
-  state.balance += amount;
-  state.loanTimeLeft = calculateLoanTime(amount);
-  
-  saveState();
-  updateBalance();
-  startLoanCountdown();
-});
-
-let loanTimer: any = null;
-
-function startLoanCountdown(): void {
-  loanTakeBlock.style.display = 'none';
-  btnReturnLoan.style.display = 'block';
-  loanTimerDisplay.style.display = 'block';
-  
-  if (loanTimer) clearInterval(loanTimer);
-  
-  loanTimer = setInterval(() => {
-    state.loanTimeLeft--;
-    saveState();
-    
-    if (state.loanTimeLeft <= 0) {
-      clearInterval(loanTimer);
-      triggerProsecution();
-      return;
-    }
-    
-    const m = Math.floor(state.loanTimeLeft / 60);
-    const s = state.loanTimeLeft % 60;
-    loanTimerDisplay.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
-    loanStatusText.textContent = `Долг висит! Нужно вернуть: ${state.activeLoan} 🪙`;
-    loanStatusText.style.color = '#f59e0b';
-  }, 1000);
-}
-
-btnReturnLoan.addEventListener('click', () => {
-  if (state.balance < state.activeLoan) {
-    alert('У тебя нет столько денег, нищий! Крути барабаны быстрее!');
-    return;
-  }
-  state.balance -= state.activeLoan;
-  clearInterval(loanTimer);
-  clearLoanState();
-  showResult('Ура! Долг выплачен, прокуратура уехала! 💼', 'win');
-});
-
-function clearLoanState(): void {
-  state.activeLoan = 0;
-  state.loanTimeLeft = 0;
-  state.underArrest = false;
-  saveState();
-  updateBalance();
-  
-  loanTakeBlock.style.display = 'block';
-  btnReturnLoan.style.display = 'none';
-  loanTimerDisplay.style.display = 'none';
-  loanStatusText.textContent = 'Вы чисты перед законом. Пока что...';
-  loanStatusText.style.color = '#4ade80';
-  spinBtn.disabled = false;
-  
-  const originalSlot = document.getElementById('tab-slot');
-  if (originalSlot && originalSlot.getAttribute('data-begging') === 'true') {
-    location.reload();
-  }
-}
 let snake: {x: number, y: number}[] = [];
 let snakeDir = {x: 1, y: 0};
 let gameFood = {x: 5, y: 5};
@@ -528,6 +446,25 @@ function handleSnakeCrash(): void {
   if (balanceText) balanceText.textContent = state.balance.toString();
   alert('💥 Ты врезался! Прокурор выписал новый штраф, баланс снова -1000 🪙. Соберись!');
   initSnakeGame();
+}
+function clearLoanState(): void {
+  state.activeLoan = 0;
+  state.loanTimeLeft = 0;
+  state.underArrest = false;
+  saveState();
+  updateBalance();
+  
+  loanTakeBlock.style.display = 'block';
+  btnReturnLoan.style.display = 'none';
+  loanTimerDisplay.style.display = 'none';
+  loanStatusText.textContent = 'Вы чисты перед законом. Пока что...';
+  loanStatusText.style.color = '#4ade80';
+  spinBtn.disabled = false;
+  
+  const originalSlot = document.getElementById('tab-slot');
+  if (originalSlot && originalSlot.getAttribute('data-begging') === 'true') {
+    location.reload();
+  }
 }
 
 function tickSnake(): void {
@@ -649,7 +586,6 @@ function showStreetBeggingInterface(): void {
     }, 1200);
   });
 }
-
 function triggerProsecution(): void {
   state.balance = -state.activeLoan;
   state.underArrest = true;
@@ -665,25 +601,35 @@ function triggerProsecution(): void {
     showStreetBeggingInterface();
   }, 2500);
 }
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
+
+document.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  
+  if (target && target.id === 'spin') {
+    spin();
+    return;
+  }
+  
+  const tab = target.closest('.tab') as HTMLElement;
+  if (tab) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
     tab.classList.add('active');
-    const targetId = `tab-${(tab as HTMLElement).dataset.tab}`;
+    const targetId = `tab-${tab.dataset.tab}`;
     document.getElementById(targetId)?.classList.add('active');
-    if ((tab as HTMLElement).dataset.tab === 'shop') renderShop();
-    if ((tab as HTMLElement).dataset.tab === 'inventory') renderInventory();
-  });
+    
+    if (tab.dataset.tab === 'shop') renderShop();
+    if (tab.dataset.tab === 'inventory') renderInventory();
+    return;
+  }
+  
+  const betBtn = target.closest('.quick-bets button') as HTMLElement;
+  if (betBtn && !betBtn.id.startsWith('sk-')) {
+    betInput.value = betBtn.dataset.bet || '10';
+    return;
+  }
 });
-
-document.querySelectorAll('.quick-bets button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    betInput.value = (btn as HTMLElement).dataset.bet || '10';
-  });
-});
-
-spinBtn.addEventListener('click', spin);
 
 document.getElementById('reset')?.addEventListener('click', () => {
   if (confirm('Сбросить баланс, инвентарь и бонусы?')) {
@@ -696,6 +642,32 @@ document.getElementById('reset')?.addEventListener('click', () => {
     showResult('Всё сброшено! 🎁', 'win');
   }
 });
+let loanTimer: any = null;
+function startLoanCountdown(): void {
+  loanTakeBlock.style.display = 'none';
+  btnReturnLoan.style.display = 'block';
+  loanTimerDisplay.style.display = 'block';
+  
+  if (loanTimer) clearInterval(loanTimer);
+  
+  loanTimer = setInterval(() => {
+    state.loanTimeLeft--;
+    saveState();
+    
+    if (state.loanTimeLeft <= 0) {
+      clearInterval(loanTimer);
+      triggerProsecution();
+      return;
+    }
+    
+    const m = Math.floor(state.loanTimeLeft / 60);
+    const s = state.loanTimeLeft % 60;
+    loanTimerDisplay.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    loanStatusText.textContent = `Долг висит! Нужно вернуть: ${state.activeLoan} 🪙`;
+    loanStatusText.style.color = '#f59e0b';
+  }, 1000);
+}
+
 function checkArrestOnLoad(): void {
   if (state.underArrest) {
     showStreetBeggingInterface();
