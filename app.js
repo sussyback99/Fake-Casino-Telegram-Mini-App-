@@ -46,6 +46,9 @@ function loadState() {
         parsed.activeBonuses = parsed.activeBonus ? [parsed.activeBonus] : [];
         delete parsed.activeBonus;
       }
+      if (parsed.activeLoan === undefined) parsed.activeLoan = 0;
+      if (parsed.loanTimeLeft === undefined) parsed.loanTimeLeft = 0;
+      if (parsed.underArrest === undefined) parsed.underArrest = false;
       return parsed;
     }
   } catch (e) {}
@@ -54,6 +57,9 @@ function loadState() {
     inventory: {},
     activeBonuses: [],
     stats: { spins: 0, wins: 0, bestWin: 0 },
+    activeLoan: 0,
+    loanTimeLeft: 0,
+    underArrest: false
   };
 }
 
@@ -233,6 +239,34 @@ function showResult(text, type) {
   resultEl.textContent = text;
   resultEl.className = 'result ' + type;
 }
+
+const loseOverlayEl = document.getElementById('lose-overlay');
+const btnGrannyEl = document.getElementById('btn-granny');
+const btnGoLoanEl = document.getElementById('btn-go-loan');
+
+function checkBankruptcy() {
+  if (state.balance <= 0 && (!state.inventory || Object.keys(state.inventory).length === 0)) {
+    loseOverlayEl.classList.remove('hidden');
+  } else {
+    loseOverlayEl.classList.add('hidden');
+  }
+}
+
+btnGrannyEl.addEventListener('click', () => {
+  state.balance = DEFAULT_BALANCE;
+  state.inventory = {};
+  state.activeBonuses = [];
+  saveState();
+  updateBalance();
+  loseOverlayEl.classList.add('hidden');
+  showResult('Взяли у бабки! Но больше так не делай 🎁', 'win');
+});
+
+btnGoLoanEl.addEventListener('click', () => {
+  loseOverlayEl.classList.add('hidden');
+  const loanTab = document.querySelector('.tab[data-tab="loans"]');
+  if (loanTab) loanTab.click();
+});
 function renderShop() {
   shopEl.innerHTML = '';
   SHOP_ITEMS.forEach(item => {
@@ -346,7 +380,7 @@ spinBtn.addEventListener('click', spin);
 
 document.getElementById('reset').addEventListener('click', () => {
   if (confirm('Сбросить баланс, инвентарь и бонусы?')) {
-    state = { balance: DEFAULT_BALANCE, inventory: {}, activeBonuses: [], stats: { spins: 0, wins: 0, bestWin: 0 } };
+    state = { balance: DEFAULT_BALANCE, inventory: {}, activeBonuses: [], stats: { spins: 0, wins: 0, bestWin: 0 }, activeLoan: 0, loanTimeLeft: 0, underArrest: false };
     saveState();
     updateBalance();
     renderShop();
@@ -355,8 +389,196 @@ document.getElementById('reset').addEventListener('click', () => {
     showResult('Всё сброшено! 🎁', 'win');
   }
 });
+let loanTimer = null;
+const targetSymbols = ['🐔', '🚨', '⚠️', '🇷🇺', '⚖️', '💼'];
+let currentTargetSymbol = '';
 
-updateBalance();
-renderShop();
-renderInventory();
-renderActiveBonus();
+const loanStatusText = document.getElementById('loan-status-text');
+const loanTimerDisplay = document.getElementById('loan-timer-display');
+const loanTakeBlock = document.getElementById('loan-take-block');
+const loanAmountInput = document.getElementById('loan-amount-input');
+const loanTimeHint = document.getElementById('loan-time-hint');
+const btnTakeLoan = document.getElementById('btn-take-loan');
+const btnReturnLoan = document.getElementById('btn-return-loan');
+const prosecutorOverlay = document.getElementById('prosecutor-overlay');
+const prosecutorText = document.getElementById('prosecutor-text');
+const btnProsecutorOk = document.getElementById('btn-prosecutor-ok');
+
+loanAmountInput.addEventListener('input', () => {
+  const amount = Number(loanAmountInput.value) || 0;
+  let totalSeconds = 110;
+  if (amount > 100) {
+    totalSeconds += Math.floor((amount - 1) / 100) * 20;
+  }
+  const displayMin = Math.floor(totalSeconds / 60);
+  const displaySec = totalSeconds % 60;
+  loanTimeHint.textContent = 'Вам будет дано: ' + displayMin + ' мин ' + displaySec + ' сек';
+});
+
+btnTakeLoan.addEventListener('click', () => {
+  const amount = Math.min(500, Math.max(10, Number(loanAmountInput.value) || 100));
+  state.activeLoan = amount;
+  state.balance += amount;
+  
+  let totalSeconds = 110;
+  if (amount > 100) {
+    totalSeconds += Math.floor((amount - 1) / 100) * 20;
+  }
+  state.loanTimeLeft = totalSeconds;
+  
+  saveState();
+  updateBalance();
+  startLoanCountdown();
+});
+
+function startLoanCountdown() {
+  loanTakeBlock.style.display = 'none';
+  btnReturnLoan.style.display = 'block';
+  loanTimerDisplay.style.display = 'block';
+  
+  if (loanTimer) clearInterval(loanTimer);
+  
+  loanTimer = setInterval(() => {
+    state.loanTimeLeft--;
+    saveState();
+    
+    if (state.loanTimeLeft <= 0) {
+      clearInterval(loanTimer);
+      triggerProsecution();
+      return;
+    }
+    
+    const m = Math.floor(state.loanTimeLeft / 60);
+    const s = state.loanTimeLeft % 60;
+    loanTimerDisplay.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    loanStatusText.textContent = 'Долг висит! Нужно вернуть: ' + state.activeLoan + ' 🪙';
+    loanStatusText.style.color = '#f59e0b';
+  }, 1000);
+}
+
+btnReturnLoan.addEventListener('click', () => {
+  if (state.balance < state.activeLoan) {
+    alert('У тебя нет столько денег, нищий! Крути барабаны быстрее!');
+    return;
+  }
+  state.balance -= state.activeLoan;
+  clearInterval(loanTimer);
+  clearLoanState();
+  showResult('Ура! Долг выплачен, прокуратура уехала! 💼', 'win');
+});
+
+function clearLoanState() {
+  state.activeLoan = 0;
+  state.loanTimeLeft = 0;
+  state.underArrest = false;
+  saveState();
+  updateBalance();
+  
+  loanTakeBlock.style.display = 'block';
+  btnReturnLoan.style.display = 'none';
+  loanTimerDisplay.style.display = 'none';
+  loanStatusText.textContent = 'Вы чисты перед законом. Пока что...';
+  loanStatusText.style.color = '#4ade80';
+  spinBtn.disabled = false;
+}
+
+function triggerProsecution() {
+  state.balance = -state.activeLoan;
+  state.underArrest = true;
+  saveState();
+  updateBalance();
+  
+  prosecutorText.innerHTML = 'Ты просрочил таймер микрозайма! Баланс улетел в <b>' + state.balance + ' 🪙</b>. Все покупки и крутки заблокированы!';
+  btnProsecutorOk.textContent = 'Принять судьбу 🐔💀';
+  prosecutorOverlay.classList.remove('hidden');
+}
+
+btnProsecutorOk.addEventListener('click', () => {
+  prosecutorOverlay.classList.add('hidden');
+  spinBtn.disabled = true;
+  document.querySelectorAll('.card button').forEach(b => b.disabled = true);
+  showStreetBeggingInterface();
+});
+
+function showStreetBeggingInterface() {
+  const slotContent = document.getElementById('tab-slot');
+  slotContent.innerHTML = `
+    <div class="slot-machine" style="text-align: center; padding: 32px 16px;">
+      <h2 style="color: #ef4444; font-size: 22px;">ТЫ АРЕСТОВАН 🚨</h2>
+      <p style="margin: 12px 0; color: #aaa;">Баланс: <span id="arrest-balance-text">${state.balance}</span> 🪙. Крутить нельзя.</p>
+      <div id="street-no-text" style="color: #ef4444; font-size: 32px; font-weight: 900; min-height: 40px; margin: 10px 0;"></div>
+      <button id="btn-beg-street" class="spin-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 100%;">
+        Попросить денег на улице 🧎‍♂️
+      </button>
+      <div id="mini-game-box" style="display: none; margin-top: 24px; background: rgba(0,0,0,0.3); padding: 16px; border-radius: 12px; border: 1px solid #444;">
+        <p style="font-size: 14px; margin-bottom: 10px;"><b>ОТРАБОТКА ДОЛГА (+50 🪙 за клик)</b><br>Быстро лови правильные символы прокурора!</p>
+        <div id="mini-game-target" style="font-size: 48px; margin: 16px 0; height: 60px; cursor: pointer; user-select: none;">🐔</div>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('btn-beg-street').addEventListener('click', () => {
+    const noText = document.getElementById('street-no-text');
+    noText.textContent = 'НЕТ!';
+    state.balance = -1000;
+    saveState();
+    document.getElementById('arrest-balance-text').textContent = state.balance;
+    tg?.HapticFeedback?.notificationOccurred('error');
+    
+    setTimeout(() => {
+      document.getElementById('mini-game-box').style.display = 'block';
+      document.getElementById('btn-beg-street').style.display = 'none';
+      startMiniGameRound();
+    }, 1200);
+  });
+}
+
+function startMiniGameRound() {
+  const targetEl = document.getElementById('mini-game-target');
+  if (!targetEl) return;
+  currentTargetSymbol = targetSymbols[Math.floor(Math.random() * targetSymbols.length)];
+  targetEl.textContent = currentTargetSymbol;
+  
+  targetEl.onclick = () => {
+    state.balance += 50;
+    saveState();
+    document.getElementById('arrest-balance-text').textContent = state.balance;
+    tg?.HapticFeedback?.impactOccurred('light');
+    
+    if (state.balance >= 0) {
+      alert('Ты полностью отработал штраф на исправительных работах! Прокуратура уехала.');
+      clearLoanState();
+      location.reload();
+    } else {
+      startMiniGameRound();
+    }
+  };
+}
+
+function checkArrestOnLoad() {
+  if (state.underArrest) {
+    setTimeout(() => { showStreetBeggingInterface(); }, 100);
+  } else if (state.activeLoan && state.loanTimeLeft > 0) {
+    startLoanCountdown();
+  }
+}
+
+const originalLoadState = loadState;
+loadState = function() {
+  const s = originalLoadState();
+  if (s && s.activeLoan === undefined) s.activeLoan = 0;
+  if (s && s.loanTimeLeft === undefined) s.loanTimeLeft = 0;
+  if (s && s.underArrest === undefined) s.underArrest = false;
+  return s;
+};
+
+const originalUpdateBalance = updateBalance;
+updateBalance = function() {
+  originalUpdateBalance();
+  checkBankruptcy();
+};
+
+setTimeout(() => {
+  updateBalance();
+  checkArrestOnLoad();
+}, 500);

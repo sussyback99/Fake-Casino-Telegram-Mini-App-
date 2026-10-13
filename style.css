@@ -259,3 +259,70 @@ footer {
 }
 
 .disclaimer { font-size: 12px; color: #888; }
+
+.lose-screen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.95);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.lose-screen-overlay.hidden { display: none; }
+
+.lose-card {
+  background: linear-gradient(145deg, #1e1b4b, #311042);
+  border: 2px solid #ef4444;
+  border-radius: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lose-card h2 {
+  font-size: 24px;
+  color: #f87171;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.lose-card p {
+  font-size: 16px;
+  color: #ddd;
+  line-height: 1.5;
+}
+
+.lose-btn {
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+  color: #fff;
+}
+
+.lose-btn.reset-granny {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.lose-btn.go-loan {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.lose-btn:active { transform: scale(0.97); }

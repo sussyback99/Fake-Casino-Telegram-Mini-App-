@@ -1,69 +1,100 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>🎰 Не настоящее казино</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fake Casino</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app">
     <header>
-      <h1>🎰 Не настоящее казино</h1>
-      <div class="balance">
-        <span>Баланс:</span>
-        <span id="balance">1000</span> 🪙
+      <h1>🎰 Верити Казино 🇷🇺</h1>
+      <div class="balance">Баланс: <span id="balance">1000</span> 🪙</div>
+      <div id="active-bonus" class="active-bonus hidden"></div>
+      <div class="tabs">
+        <button class="tab active" data-tab="slot">Слоты 🎰</button>
+        <button class="tab" data-tab="shop">Магазин 🧲</button>
+        <button class="tab" data-tab="inventory">Инвентарь 🛡️</button>
+        <button class="tab" data-tab="loans">Займы 🏦</button>
       </div>
-      <nav class="tabs">
-        <button class="tab active" data-tab="slot">Слоты</button>
-        <button class="tab" data-tab="shop">Магазин</button>
-        <button class="tab" data-tab="inventory">Инвентарь</button>
-      </nav>
     </header>
 
-    <section id="tab-slot" class="tab-content active">
-      <div class="slot-machine">
-        <div class="reels">
-          <div class="reel" id="reel1">🍒</div>
-          <div class="reel" id="reel2">🍋</div>
-          <div class="reel" id="reel3">⭐</div>
+    <main>
+      <div id="tab-slot" class="tab-content active">
+        <div class="slot-machine">
+          <div class="reels">
+            <div class="reel" id="reel1">🍒</div>
+            <div class="reel" id="reel2">🍋</div>
+            <div class="reel" id="reel3">🍊</div>
+          </div>
+          <div class="result" id="result">Удачи! 🎰</div>
         </div>
-        <div class="result" id="result">Нажмите «Крутить»!</div>
+
+        <div class="controls">
+          <label>Ставка:
+            <input type="number" id="bet" value="10" min="1">
+          </label>
+          <div class="quick-bets">
+            <button data-bet="10">10</button>
+            <button data-bet="50">50</button>
+            <button data-bet="100">100</button>
+            <button data-bet="500">500</button>
+          </div>
+          <button class="spin-btn" id="spin">КРУТИТЬ! 🚀</button>
+        </div>
       </div>
 
-      <div class="controls">
-        <label>
-          Ставка:
-          <input type="number" id="bet" value="10" min="1" max="100000" />
-        </label>
-        <div class="quick-bets">
-          <button data-bet="10">10</button>
-          <button data-bet="50">50</button>
-          <button data-bet="100">100</button>
-          <button data-bet="500">500</button>
-        </div>
-        <button id="spin" class="spin-btn">КРУТИТЬ 🎲</button>
+      <div id="tab-shop" class="tab-content">
+        <h2>Магазин бустов 🛒</h2>
+        <p class="hint">Предметы действуют ровно ОДИН следующий спин!</p>
+        <div class="grid" id="shop-items"></div>
       </div>
-    </section>
 
-    <section id="tab-shop" class="tab-content">
-      <h2>🛒 Магазин</h2>
-      <p class="hint">Бонусы действуют до следующего вращения.</p>
-      <div id="shop-items" class="grid"></div>
-    </section>
+      <div id="tab-inventory" class="tab-content">
+        <h2>Ваш инвентарь 🛡️</h2>
+        <p class="hint">Активируйте предметы непосредственно перед круткой!</p>
+        <div class="grid" id="inventory-items"></div>
+      </div>
 
-    <section id="tab-inventory" class="tab-content">
-      <h2>🎒 Инвентарь</h2>
-      <p class="hint">Активируйте предмет перед вращением.</p>
-      <div id="inventory-items" class="grid"></div>
-      <div id="active-bonus" class="active-bonus hidden"></div>
-    </section>
+      <div id="tab-loans" class="tab-content">
+        <h2>Микрозаймы от Верити 🐔🏦</h2>
+        <p class="hint">Быстрые бабки под честное пацанское слово. Верни вовремя, а то приедут.</p>
+        <div class="slot-machine" style="text-align: center; display: flex; flex-direction: column; gap: 16px;">
+          <div id="loan-status-text" style="font-size: 16px; font-weight: bold; color: #4ade80;">Вы чисты перед законом. Пока что...</div>
+          <div id="loan-timer-display" style="font-size: 24px; font-weight: bold; color: #f87171; display: none;">00:00</div>
+          <div id="loan-take-block" class="controls">
+            <label>Сумма займа (🪙):</label>
+            <input type="number" id="loan-amount-input" min="10" max="500" value="100" style="text-align: center;">
+            <div style="font-size: 12px; color: #aaa;" id="loan-time-hint">Вам будет дано: 1 мин 50 сек</div>
+            <button id="btn-take-loan" class="spin-btn" style="background: linear-gradient(135deg, #22c55e, #16a34a); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4);">Взять бабки 💰</button>
+          </div>
+          <button id="btn-return-loan" class="spin-btn" style="display: none; background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);">Вернуть долг 💼</button>
+        </div>
+      </div>
+    </main>
 
     <footer>
-      <button id="reset" class="reset-btn">Сбросить всё</button>
-      <p class="disclaimer">⚠️ Игра без реальных ставок. Только для развлечения!</p>
+      <button class="reset-btn" id="reset">Сбросить прогресс ⚙️</button>
+      <div class="disclaimer">Игра создана чисто для рофла в кругу друзей.</div>
     </footer>
+  </div>
+
+  <div id="lose-overlay" class="lose-screen-overlay hidden">
+    <div class="lose-card">
+      <h2>Брат! Ты просрал все деньги! ХЕРОВАЯ ТЕМКА! 🐔⚠️</h2>
+      <p>Что делать будем? Выход есть всегда, выбирай вариант:</p>
+      <button id="btn-granny" class="lose-btn reset-granny">Слушай! У твоей бабки деньги в сейфе есть погнали возмём и продолжим 👵💰</button>
+      <button id="btn-go-loan" class="lose-btn go-loan">А го займ возмём? 🏦🎰</button>
+    </div>
+  </div>
+
+  <div id="prosecutor-overlay" class="lose-screen-overlay hidden">
+    <div class="lose-card" style="border-color: #ef4444; box-shadow: 0 0 40px #ef4444;">
+      <h2 style="color: #ef4444; font-size: 26px; animation: shake 0.1s infinite;">БРАТ! ЗА НАМИ ПРОКУРОТУРА ЕДЕТ! НАХЕР ТЫ НЕ ВЫПЛОТИЛ? 🚨⚠️🇷🇺</h2>
+      <p id="prosecutor-text">Ты просрочил таймер микрозайма!</p>
+      <button id="btn-prosecutor-ok" class="lose-btn reset-granny" style="background: linear-gradient(135deg, #ef4444, #b91c1c);">Принять судьбу 🐔💀</button>
+    </div>
   </div>
 
   <script src="app.js"></script>
