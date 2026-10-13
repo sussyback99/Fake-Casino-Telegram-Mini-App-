@@ -245,7 +245,7 @@ function renderShop() {
       <div class="desc">${item.desc}</div>
       <div class="price">${item.price} 🪙</div>
       <button class="buy" ${state.balance < item.price ? 'disabled' : ''}>
-        Купить${owned ? ` (у вас: \${owned})` : ''}
+        Купить${owned ? ` (у вас: ${owned})` : ''}
       </button>
     `;
     card.querySelector('button').addEventListener('click', () => buyItem(item));
