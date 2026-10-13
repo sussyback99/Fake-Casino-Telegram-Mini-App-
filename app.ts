@@ -1,3 +1,23 @@
+export {}
+
+interface TelegramWebApp {
+  ready(): void;
+  expand(): void;
+  setHeaderColor?(color: string): void;
+  HapticFeedback?: {
+    notificationOccurred(type: 'success' | 'warning' | 'error'): void;
+    impactOccurred(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'): void;
+  };
+}
+
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp: TelegramWebApp;
+    };
+  }
+}
+
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
@@ -5,7 +25,14 @@ if (tg) {
   tg.setHeaderColor?.('#1a1a2e');
 }
 
-const SYMBOLS = [
+interface SymbolInfo {
+  icon: string;
+  weight: number;
+  payout: number;
+  name: string;
+}
+
+const SYMBOLS: SymbolInfo[] = [
   { icon: '🍒', weight: 20, payout: 4,   name: 'cherry'  },
   { icon: '🍋', weight: 20, payout: 4,   name: 'lemon'   },
   { icon: '🍊', weight: 18, payout: 5,   name: 'orange'  },
@@ -19,12 +46,25 @@ const SYMBOLS = [
   { icon: '🎰', weight: 1,  payout: 250, name: 'jackpot' },
 ];
 
-const TOTAL_WEIGHT = SYMBOLS.reduce((s, x) => s + x.weight, 0);
-
 const STORAGE_KEY = 'casino_state_v2';
 const DEFAULT_BALANCE = 1000;
 
-const SHOP_ITEMS = [
+interface BonusEffect {
+  type: string;
+  value?: number;
+}
+
+interface ShopItem {
+  id: string;
+  icon: string;
+  name: string;
+  desc: string;
+  price: number;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  effect: BonusEffect;
+}
+
+const SHOP_ITEMS: ShopItem[] = [
   { id: 'lucky_charm', icon: '🍀', name: 'Клевер удачи', desc: '+50% к следующему выигрышу', price: 150, rarity: 'rare', effect: { type: 'multiplier', value: 1.5 } },
   { id: 'double_win', icon: '✖️', name: 'Двойной куш', desc: 'Удваивает следующий выигрыш', price: 400, rarity: 'epic', effect: { type: 'multiplier', value: 2 } },
   { id: 'triple_win', icon: '🔱', name: 'Тройной куш', desc: 'Утраивает следующий выигрыш', price: 900, rarity: 'legendary', effect: { type: 'multiplier', value: 3 } },
@@ -32,12 +72,24 @@ const SHOP_ITEMS = [
   { id: 'reroll', icon: '🔄', name: 'Переброс', desc: 'Автоповтор при проигрыше', price: 300, rarity: 'epic', effect: { type: 'reroll' } },
   { id: 'diamond_boost', icon: '💠', name: 'Алмазный буст', desc: 'Заменяет первый символ на 💎', price: 500, rarity: 'epic', effect: { type: 'force_diamond' } },
   { id: 'jackpot_hunt', icon: '🎯', name: 'Охота за джекпотом', desc: 'Повышает шанс редких символов ×3', price: 700, rarity: 'legendary', effect: { type: 'rare_boost', value: 3 } },
-  { id: 'coin_magnet', icon: '🧲', name: 'Магнит монет', desc: '+25% монет за любую победу', price: 250, rarity: 'common', effect: { type: 'coin_bonus', value: 0.25 } }
+  { id: 'coin_magnet', icon: '🧲', name: 'Магнит монет', desc: '+25% монет за любую победу', price: 250, rarity: 'common', effect: { type: 'coin_bonus', value: 0.25 } },
+  { id: 'banana_boost', icon: '🍌', name: 'Банановый Бум', desc: 'Добавляет +15% шанс на выигрышную пару', price: 180, rarity: 'common', effect: { type: 'pair_boost', value: 1.15 } },
+  { id: 'prosecutor_bribe', icon: '💸', name: 'Взятка прокурору', desc: 'Удлиняет таймер текущего/нового займа на +60 сек', price: 350, rarity: 'rare', effect: { type: 'extend_timer', value: 60 } }
 ];
 
-let state = loadState();
+interface CasinoState {
+  balance: number;
+  inventory: Record<string, number>;
+  activeBonuses: (BonusEffect & { id: string })[];
+  stats: { spins: number; wins: number; bestWin: number };
+  activeLoan: number;
+  loanTimeLeft: number;
+  underArrest: boolean;
+}
 
-function loadState() {
+let state: CasinoState = loadState();
+
+function loadState(): CasinoState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -63,28 +115,52 @@ function loadState() {
   };
 }
 
-function saveState() {
+function saveState(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
-const balanceEl = document.getElementById('balance');
-const resultEl = document.getElementById('result');
-const spinBtn = document.getElementById('spin');
-const betInput = document.getElementById('bet');
+const balanceEl = document.getElementById('balance') as HTMLElement;
+const resultEl = document.getElementById('result') as HTMLElement;
+const spinBtn = document.getElementById('spin') as HTMLButtonElement;
+const betInput = document.getElementById('bet') as HTMLInputElement;
 const reels = [
-  document.getElementById('reel1'),
-  document.getElementById('reel2'),
-  document.getElementById('reel3'),
+  document.getElementById('reel1') as HTMLElement,
+  document.getElementById('reel2') as HTMLElement,
+  document.getElementById('reel3') as HTMLElement,
 ];
-const shopEl = document.getElementById('shop-items');
-const invEl = document.getElementById('inventory-items');
-const activeBonusEl = document.getElementById('active-bonus');
+const shopEl = document.getElementById('shop-items') as HTMLElement;
+const invEl = document.getElementById('inventory-items') as HTMLElement;
+const activeBonusEl = document.getElementById('active-bonus') as HTMLElement;
 
-function updateBalance() {
-  balanceEl.textContent = state.balance;
+const loanStatusText = document.getElementById('loan-status-text') as HTMLElement;
+const loanTimerDisplay = document.getElementById('loan-timer-display') as HTMLElement;
+const loanTakeBlock = document.getElementById('loan-take-block') as HTMLElement;
+const loanAmountInput = document.getElementById('loan-amount-input') as HTMLInputElement;
+const loanTimeHint = document.getElementById('loan-time-hint') as HTMLElement;
+const btnTakeLoan = document.getElementById('btn-take-loan') as HTMLButtonElement;
+const btnReturnLoan = document.getElementById('btn-return-loan') as HTMLButtonElement;
+const prosecutorOverlay = document.getElementById('prosecutor-overlay') as HTMLElement;
+const prosecutorText = document.getElementById('prosecutor-text') as HTMLElement;
+const btnProsecutorOk = document.getElementById('btn-prosecutor-ok') as HTMLButtonElement;
+
+const loseOverlayEl = document.getElementById('lose-overlay') as HTMLElement;
+const btnGrannyEl = document.getElementById('btn-granny') as HTMLButtonElement;
+const btnGoLoanEl = document.getElementById('btn-go-loan') as HTMLButtonElement;
+function updateBalance(): void {
+  balanceEl.textContent = state.balance.toString();
   saveState();
+  checkBankruptcy();
 }
 
-function pickSymbol(rareBoost = 1) {
+function checkBankruptcy(): void {
+  const hasInventory = Object.keys(state.inventory).some(key => state.inventory[key] > 0);
+  if (state.balance <= 0 && !hasInventory && state.activeLoan === 0 && !state.underArrest) {
+    loseOverlayEl.classList.remove('hidden');
+  } else {
+    loseOverlayEl.classList.add('hidden');
+  }
+}
+
+function pickSymbol(rareBoost: number = 1): SymbolInfo {
   const weighted = SYMBOLS.map(s => {
     const isRare = ['💎', '👑', '7️⃣', '🎰'].includes(s.icon);
     return { ...s, weight: s.weight * (isRare ? rareBoost : 1) };
@@ -98,11 +174,14 @@ function pickSymbol(rareBoost = 1) {
   return weighted[0];
 }
 
-function getSymbolByName(name) {
-  return SYMBOLS.find(s => s.name === name);
+function getSymbolByName(name: string): SymbolInfo {
+  return SYMBOLS.find(s => s.name === name) || SYMBOLS[0];
 }
 
-function calculateWin(symbols, bet) {
+
+
+
+function calculateWin(symbols: SymbolInfo[], bet: number): { win: number; text: string; multiplier: number } {
   const [a, b, c] = symbols;
   const icons = symbols.map(s => s.icon);
 
@@ -125,7 +204,7 @@ function calculateWin(symbols, bet) {
   return { win: 0, text: 'Увы, не повезло 😢', multiplier: 0 };
 }
 
-function animateSpin(finalSymbols, callback) {
+function animateSpin(finalSymbols: SymbolInfo[], callback: () => void): void {
   reels.forEach(r => r.classList.add('spinning'));
   const startTime = Date.now();
   const duration = 800;
@@ -145,15 +224,15 @@ function animateSpin(finalSymbols, callback) {
   }, 60);
 }
 
-function applyBonusOnSpin(symbols, bet) {
+function applyBonusOnSpin(symbols: SymbolInfo[], bet: number): { symbols: SymbolInfo[]; bonusEffects: any } {
   const bonuses = state.activeBonuses || [];
-  const effects = { multiplier: 1, insurance: false, reroll: false, coinBonus: 0, consumed: true };
+  const effects = { multiplier: 1, insurance: false, reroll: false, coinBonus: 0 };
   let newSymbols = [...symbols];
 
   bonuses.forEach(bonus => {
     switch (bonus.type) {
       case 'multiplier':
-        effects.multiplier *= bonus.value;
+        effects.multiplier *= bonus.value || 1;
         break;
       case 'insurance':
         effects.insurance = true;
@@ -162,7 +241,7 @@ function applyBonusOnSpin(symbols, bet) {
         effects.reroll = true;
         break;
       case 'coin_bonus':
-        effects.coinBonus += bonus.value;
+        effects.coinBonus += bonus.value || 0;
         break;
       case 'force_diamond':
         newSymbols[0] = getSymbolByName('diamond');
@@ -172,7 +251,8 @@ function applyBonusOnSpin(symbols, bet) {
 
   return { symbols: newSymbols, bonusEffects: effects };
 }
-async function spin() {
+
+async function spin(): Promise<void> {
   if (spinBtn.disabled) return;
 
   const bet = Number(betInput.value);
@@ -182,7 +262,7 @@ async function spin() {
   spinBtn.disabled = true;
 
   const jackpotHunt = state.activeBonuses?.find(b => b.type === 'rare_boost');
-  const rareBoost = jackpotHunt ? jackpotHunt.value : 1;
+  const rareBoost = jackpotHunt ? (jackpotHunt.value || 1) : 1;
 
   let symbols = [pickSymbol(rareBoost), pickSymbol(rareBoost), pickSymbol(rareBoost)];
   const applied = applyBonusOnSpin(symbols, bet);
@@ -235,39 +315,12 @@ async function spin() {
   });
 }
 
-function showResult(text, type) {
+function showResult(text: string, type: 'win' | 'lose'): void {
   resultEl.textContent = text;
   resultEl.className = 'result ' + type;
 }
 
-const loseOverlayEl = document.getElementById('lose-overlay');
-const btnGrannyEl = document.getElementById('btn-granny');
-const btnGoLoanEl = document.getElementById('btn-go-loan');
-
-function checkBankruptcy() {
-  if (state.balance <= 0 && (!state.inventory || Object.keys(state.inventory).length === 0)) {
-    loseOverlayEl.classList.remove('hidden');
-  } else {
-    loseOverlayEl.classList.add('hidden');
-  }
-}
-
-btnGrannyEl.addEventListener('click', () => {
-  state.balance = DEFAULT_BALANCE;
-  state.inventory = {};
-  state.activeBonuses = [];
-  saveState();
-  updateBalance();
-  loseOverlayEl.classList.add('hidden');
-  showResult('Взяли у бабки! Но больше так не делай 🎁', 'win');
-});
-
-btnGoLoanEl.addEventListener('click', () => {
-  loseOverlayEl.classList.add('hidden');
-  const loanTab = document.querySelector('.tab[data-tab="loans"]');
-  if (loanTab) loanTab.click();
-});
-function renderShop() {
+function renderShop(): void {
   shopEl.innerHTML = '';
   SHOP_ITEMS.forEach(item => {
     const owned = state.inventory[item.id] || 0;
@@ -276,7 +329,7 @@ function renderShop() {
     
     let buttonText = 'Купить';
     if (owned > 0) {
-      buttonText = 'Купить (у вас: ' + owned + ')';
+      buttonText = `Купить (у вас: ${owned})`;
     }
 
     card.innerHTML = `
@@ -288,12 +341,12 @@ function renderShop() {
         ${buttonText}
       </button>
     `;
-    card.querySelector('button').addEventListener('click', () => buyItem(item));
+    card.querySelector('button')?.addEventListener('click', () => buyItem(item));
     shopEl.appendChild(card);
   });
 }
 
-function renderInventory() {
+function renderInventory(): void {
   const entries = Object.entries(state.inventory).filter(([, qty]) => qty > 0);
 
   if (entries.length === 0) {
@@ -313,12 +366,12 @@ function renderInventory() {
       <div class="desc">${item.desc}</div>
       <button class="use">Активировать</button>
     `;
-    card.querySelector('button').addEventListener('click', () => useItem(item));
+    card.querySelector('button')?.addEventListener('click', () => useItem(item));
     invEl.appendChild(card);
   });
 }
 
-function renderActiveBonus() {
+function renderActiveBonus(): void {
   if (!state.activeBonuses || state.activeBonuses.length === 0) {
     activeBonusEl.classList.add('hidden');
     return;
@@ -326,12 +379,12 @@ function renderActiveBonus() {
   activeBonusEl.classList.remove('hidden');
   const activeItemsText = state.activeBonuses.map(activeBonus => {
     const item = SHOP_ITEMS.find(i => i.id === activeBonus.id);
-    return `${item.icon} <b>${item.name}</b>`;
+    return `${item?.icon} <b>${item?.name}</b>`;
   }).join(', ');
   activeBonusEl.innerHTML = `Активно комбо: ${activeItemsText}`;
 }
 
-function buyItem(item) {
+function buyItem(item: ShopItem): void {
   if (state.balance < item.price) return;
   state.balance -= item.price;
   state.inventory[item.id] = (state.inventory[item.id] || 0) + 1;
@@ -341,8 +394,24 @@ function buyItem(item) {
   tg?.HapticFeedback?.impactOccurred('medium');
 }
 
-function useItem(item) {
+function useItem(item: ShopItem): void {
   if (!state.inventory[item.id]) return;
+
+  if (item.effect.type === 'extend_timer') {
+    if (state.activeLoan > 0) {
+      state.loanTimeLeft += item.effect.value || 60;
+      state.inventory[item.id]--;
+      if (state.inventory[item.id] === 0) delete state.inventory[item.id];
+      saveState();
+      renderInventory();
+      renderShop();
+      alert(`⏱️ Таймер займа успешно увеличен на +${item.effect.value} секунд!`);
+    } else {
+      alert('У вас нет активных займов для продления!');
+    }
+    return;
+  }
+
   if (state.activeBonuses.some(b => b.id === item.id)) {
     alert('Этот буст уже активирован на следующий спин!');
     return;
@@ -356,82 +425,38 @@ function useItem(item) {
   renderShop();
   renderActiveBonus();
   tg?.HapticFeedback?.impactOccurred('light');
-  document.querySelector('.tab[data-tab="slot"]').click();
+  (document.querySelector('.tab[data-tab="slot"]') as HTMLElement).click();
 }
-
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-    if (tab.dataset.tab === 'shop') renderShop();
-    if (tab.dataset.tab === 'inventory') renderInventory();
-  });
-});
-
-document.querySelectorAll('.quick-bets button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    betInput.value = btn.dataset.bet;
-  });
-});
-
-spinBtn.addEventListener('click', spin);
-
-document.getElementById('reset').addEventListener('click', () => {
-  if (confirm('Сбросить баланс, инвентарь и бонусы?')) {
-    state = { balance: DEFAULT_BALANCE, inventory: {}, activeBonuses: [], stats: { spins: 0, wins: 0, bestWin: 0 }, activeLoan: 0, loanTimeLeft: 0, underArrest: false };
-    saveState();
-    updateBalance();
-    renderShop();
-    renderInventory();
-    renderActiveBonus();
-    showResult('Всё сброшено! 🎁', 'win');
+function calculateLoanTime(amount: number): number {
+  let baseSeconds = 110;
+  if (amount > 100) {
+    baseSeconds += Math.floor((amount - 100) / 100) * 20;
   }
-});
-let loanTimer = null;
-const targetSymbols = ['🐔', '🚨', '⚠️', '🇷🇺', '⚖️', '💼'];
-let currentTargetSymbol = '';
-
-const loanStatusText = document.getElementById('loan-status-text');
-const loanTimerDisplay = document.getElementById('loan-timer-display');
-const loanTakeBlock = document.getElementById('loan-take-block');
-const loanAmountInput = document.getElementById('loan-amount-input');
-const loanTimeHint = document.getElementById('loan-time-hint');
-const btnTakeLoan = document.getElementById('btn-take-loan');
-const btnReturnLoan = document.getElementById('btn-return-loan');
-const prosecutorOverlay = document.getElementById('prosecutor-overlay');
-const prosecutorText = document.getElementById('prosecutor-text');
-const btnProsecutorOk = document.getElementById('btn-prosecutor-ok');
+  return baseSeconds;
+}
 
 loanAmountInput.addEventListener('input', () => {
   const amount = Number(loanAmountInput.value) || 0;
-  let totalSeconds = 110;
-  if (amount > 100) {
-    totalSeconds += Math.floor((amount - 1) / 100) * 20;
-  }
+  const totalSeconds = calculateLoanTime(amount);
   const displayMin = Math.floor(totalSeconds / 60);
   const displaySec = totalSeconds % 60;
-  loanTimeHint.textContent = 'Вам будет дано: ' + displayMin + ' мин ' + displaySec + ' сек';
+  loanTimeHint.textContent = `Вам будет дано: ${displayMin} мин ${displaySec} сек`;
 });
 
 btnTakeLoan.addEventListener('click', () => {
   const amount = Math.min(500, Math.max(10, Number(loanAmountInput.value) || 100));
   state.activeLoan = amount;
   state.balance += amount;
-  
-  let totalSeconds = 110;
-  if (amount > 100) {
-    totalSeconds += Math.floor((amount - 1) / 100) * 20;
-  }
-  state.loanTimeLeft = totalSeconds;
+  state.loanTimeLeft = calculateLoanTime(amount);
   
   saveState();
   updateBalance();
   startLoanCountdown();
 });
 
-function startLoanCountdown() {
+let loanTimer: any = null;
+
+function startLoanCountdown(): void {
   loanTakeBlock.style.display = 'none';
   btnReturnLoan.style.display = 'block';
   loanTimerDisplay.style.display = 'block';
@@ -450,8 +475,8 @@ function startLoanCountdown() {
     
     const m = Math.floor(state.loanTimeLeft / 60);
     const s = state.loanTimeLeft % 60;
-    loanTimerDisplay.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-    loanStatusText.textContent = 'Долг висит! Нужно вернуть: ' + state.activeLoan + ' 🪙';
+    loanTimerDisplay.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    loanStatusText.textContent = `Долг висит! Нужно вернуть: ${state.activeLoan} 🪙`;
     loanStatusText.style.color = '#f59e0b';
   }, 1000);
 }
@@ -467,7 +492,7 @@ btnReturnLoan.addEventListener('click', () => {
   showResult('Ура! Долг выплачен, прокуратура уехала! 💼', 'win');
 });
 
-function clearLoanState() {
+function clearLoanState(): void {
   state.activeLoan = 0;
   state.loanTimeLeft = 0;
   state.underArrest = false;
@@ -480,15 +505,20 @@ function clearLoanState() {
   loanStatusText.textContent = 'Вы чисты перед законом. Пока что...';
   loanStatusText.style.color = '#4ade80';
   spinBtn.disabled = false;
+  
+  const originalSlot = document.getElementById('tab-slot');
+  if (originalSlot && originalSlot.getAttribute('data-begging') === 'true') {
+    location.reload();
+  }
 }
 
-function triggerProsecution() {
+function triggerProsecution(): void {
   state.balance = -state.activeLoan;
   state.underArrest = true;
   saveState();
   updateBalance();
   
-  prosecutorText.innerHTML = 'Ты просрочил таймер микрозайма! Баланс улетел в <b>' + state.balance + ' 🪙</b>. Все покупки и крутки заблокированы!';
+  prosecutorText.innerHTML = `Ты просрочил таймер микрозайма! Баланс улетел в <b>${state.balance} 🪙</b>. Все покупки и крутки заблокированы!`;
   btnProsecutorOk.textContent = 'Принять судьбу 🐔💀';
   prosecutorOverlay.classList.remove('hidden');
 }
@@ -496,12 +526,16 @@ function triggerProsecution() {
 btnProsecutorOk.addEventListener('click', () => {
   prosecutorOverlay.classList.add('hidden');
   spinBtn.disabled = true;
-  document.querySelectorAll('.card button').forEach(b => b.disabled = true);
+  document.querySelectorAll('.card button').forEach(b => (b as HTMLButtonElement).disabled = true);
   showStreetBeggingInterface();
 });
 
-function showStreetBeggingInterface() {
-  const slotContent = document.getElementById('tab-slot');
+const targetSymbols = ['🐔', '🚨', '⚠️', '🇷🇺', '⚖️', '💼'];
+let currentTargetSymbol = '';
+
+function showStreetBeggingInterface(): void {
+  const slotContent = document.getElementById('tab-slot') as HTMLElement;
+  slotContent.setAttribute('data-begging', 'true');
   slotContent.innerHTML = `
     <div class="slot-machine" style="text-align: center; padding: 32px 16px;">
       <h2 style="color: #ef4444; font-size: 22px;">ТЫ АРЕСТОВАН 🚨</h2>
@@ -517,24 +551,26 @@ function showStreetBeggingInterface() {
     </div>
   `;
   
-  document.getElementById('btn-beg-street').addEventListener('click', () => {
-    const noText = document.getElementById('street-no-text');
+  const btnBegStreet = document.getElementById('btn-beg-street') as HTMLButtonElement;
+  btnBegStreet.addEventListener('click', () => {
+    const noText = document.getElementById('street-no-text') as HTMLElement;
     noText.textContent = 'НЕТ!';
     state.balance = -1000;
     saveState();
-    document.getElementById('arrest-balance-text').textContent = state.balance;
+    (document.getElementById('arrest-balance-text') as HTMLElement).textContent = state.balance.toString();
     tg?.HapticFeedback?.notificationOccurred('error');
     
     setTimeout(() => {
-      document.getElementById('mini-game-box').style.display = 'block';
-      document.getElementById('btn-beg-street').style.display = 'none';
+      const box = document.getElementById('mini-game-box') as HTMLElement;
+      if(box) box.style.display = 'block';
+      btnBegStreet.style.display = 'none';
       startMiniGameRound();
     }, 1200);
   });
 }
 
-function startMiniGameRound() {
-  const targetEl = document.getElementById('mini-game-target');
+function startMiniGameRound(): void {
+  const targetEl = document.getElementById('mini-game-target') as HTMLElement;
   if (!targetEl) return;
   currentTargetSymbol = targetSymbols[Math.floor(Math.random() * targetSymbols.length)];
   targetEl.textContent = currentTargetSymbol;
@@ -542,43 +578,77 @@ function startMiniGameRound() {
   targetEl.onclick = () => {
     state.balance += 50;
     saveState();
-    document.getElementById('arrest-balance-text').textContent = state.balance;
+    const balanceText = document.getElementById('arrest-balance-text');
+    if (balanceText) balanceText.textContent = state.balance.toString();
     tg?.HapticFeedback?.impactOccurred('light');
     
     if (state.balance >= 0) {
       alert('Ты полностью отработал штраф на исправительных работах! Прокуратура уехала.');
       clearLoanState();
-      location.reload();
     } else {
       startMiniGameRound();
     }
   };
 }
 
-function checkArrestOnLoad() {
+function checkArrestOnLoad(): void {
   if (state.underArrest) {
-    setTimeout(() => { showStreetBeggingInterface(); }, 100);
-  } else if (state.activeLoan && state.loanTimeLeft > 0) {
+    showStreetBeggingInterface();
+  } else if (state.activeLoan > 0 && state.loanTimeLeft > 0) {
     startLoanCountdown();
   }
 }
 
-const originalLoadState = loadState;
-loadState = function() {
-  const s = originalLoadState();
-  if (s && s.activeLoan === undefined) s.activeLoan = 0;
-  if (s && s.loanTimeLeft === undefined) s.loanTimeLeft = 0;
-  if (s && s.underArrest === undefined) s.underArrest = false;
-  return s;
-};
-
-const originalUpdateBalance = updateBalance;
-updateBalance = function() {
-  originalUpdateBalance();
-  checkBankruptcy();
-};
-
-setTimeout(() => {
+btnGrannyEl.addEventListener('click', () => {
+  state.balance = DEFAULT_BALANCE;
+  state.inventory = {};
+  state.activeBonuses = [];
+  saveState();
   updateBalance();
-  checkArrestOnLoad();
-}, 500);
+  loseOverlayEl.classList.add('hidden');
+  showResult('Взяли у бабки! Но больше так не делай 🎁', 'win');
+});
+
+btnGoLoanEl.addEventListener('click', () => {
+  loseOverlayEl.classList.add('hidden');
+  const loanTab = document.querySelector('.tab[data-tab="loans"]') as HTMLElement;
+  if (loanTab) loanTab.click();
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    const targetId = `tab-${(tab as HTMLElement).dataset.tab}`;
+    document.getElementById(targetId)?.classList.add('active');
+    if ((tab as HTMLElement).dataset.tab === 'shop') renderShop();
+    if ((tab as HTMLElement).dataset.tab === 'inventory') renderInventory();
+  });
+});
+
+document.querySelectorAll('.quick-bets button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    betInput.value = (btn as HTMLElement).dataset.bet || '10';
+  });
+});
+
+spinBtn.addEventListener('click', spin);
+
+document.getElementById('reset')?.addEventListener('click', () => {
+  if (confirm('Сбросить баланс, инвентарь и бонусы?')) {
+    state = { balance: DEFAULT_BALANCE, inventory: {}, activeBonuses: [], stats: { spins: 0, wins: 0, bestWin: 0 }, activeLoan: 0, loanTimeLeft: 0, underArrest: false };
+    saveState();
+    updateBalance();
+    renderShop();
+    renderInventory();
+    renderActiveBonus();
+    showResult('Всё сброшено! 🎁', 'win');
+  }
+});
+
+updateBalance();
+renderShop();
+renderInventory();
+renderActiveBonus();
+checkArrestOnLoad();
