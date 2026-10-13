@@ -1,4 +1,4 @@
-export {}
+export {};
 
 interface TelegramWebApp {
   ready(): void;
@@ -24,7 +24,6 @@ if (tg) {
   tg.expand();
   tg.setHeaderColor?.('#1a1a2e');
 }
-
 interface SymbolInfo {
   icon: string;
   weight: number;
@@ -76,7 +75,6 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: 'banana_boost', icon: '🍌', name: 'Банановый Бум', desc: 'Добавляет +15% шанс на выигрышную пару', price: 180, rarity: 'common', effect: { type: 'pair_boost', value: 1.15 } },
   { id: 'prosecutor_bribe', icon: '💸', name: 'Взятка прокурору', desc: 'Удлиняет таймер текущего/нового займа на +60 сек', price: 350, rarity: 'rare', effect: { type: 'extend_timer', value: 60 } }
 ];
-
 interface CasinoState {
   balance: number;
   inventory: Record<string, number>;
@@ -118,6 +116,7 @@ function loadState(): CasinoState {
 function saveState(): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
+
 const balanceEl = document.getElementById('balance') as HTMLElement;
 const resultEl = document.getElementById('result') as HTMLElement;
 const spinBtn = document.getElementById('spin') as HTMLButtonElement;
@@ -140,7 +139,6 @@ const btnTakeLoan = document.getElementById('btn-take-loan') as HTMLButtonElemen
 const btnReturnLoan = document.getElementById('btn-return-loan') as HTMLButtonElement;
 const prosecutorOverlay = document.getElementById('prosecutor-overlay') as HTMLElement;
 const prosecutorText = document.getElementById('prosecutor-text') as HTMLElement;
-const btnProsecutorOk = document.getElementById('btn-prosecutor-ok') as HTMLButtonElement;
 
 const loseOverlayEl = document.getElementById('lose-overlay') as HTMLElement;
 const btnGrannyEl = document.getElementById('btn-granny') as HTMLButtonElement;
@@ -177,9 +175,6 @@ function pickSymbol(rareBoost: number = 1): SymbolInfo {
 function getSymbolByName(name: string): SymbolInfo {
   return SYMBOLS.find(s => s.name === name) || SYMBOLS[0];
 }
-
-
-
 
 function calculateWin(symbols: SymbolInfo[], bet: number): { win: number; text: string; multiplier: number } {
   const [a, b, c] = symbols;
@@ -251,7 +246,6 @@ function applyBonusOnSpin(symbols: SymbolInfo[], bet: number): { symbols: Symbol
 
   return { symbols: newSymbols, bonusEffects: effects };
 }
-
 async function spin(): Promise<void> {
   if (spinBtn.disabled) return;
 
@@ -319,7 +313,6 @@ function showResult(text: string, type: 'win' | 'lose'): void {
   resultEl.textContent = text;
   resultEl.className = 'result ' + type;
 }
-
 function renderShop(): void {
   shopEl.innerHTML = '';
   SHOP_ITEMS.forEach(item => {
@@ -511,42 +504,129 @@ function clearLoanState(): void {
     location.reload();
   }
 }
-
-function triggerProsecution(): void {
-  state.balance = -state.activeLoan;
-  state.underArrest = true;
-  saveState();
-  updateBalance();
-  
-  prosecutorText.innerHTML = `Ты просрочил таймер микрозайма! Баланс улетел в <b>${state.balance} 🪙</b>. Все покупки и крутки заблокированы!`;
-  btnProsecutorOk.textContent = 'Принять судьбу 🐔💀';
-  prosecutorOverlay.classList.remove('hidden');
-}
-
-btnProsecutorOk.addEventListener('click', () => {
-  prosecutorOverlay.classList.add('hidden');
-  spinBtn.disabled = true;
-  document.querySelectorAll('.card button').forEach(b => (b as HTMLButtonElement).disabled = true);
-  showStreetBeggingInterface();
-});
+let snake: {x: number, y: number}[] = [];
+let snakeDir = {x: 1, y: 0};
+let gameFood = {x: 5, y: 5};
+let snakeTimer: any = null;
+const gridSize = 15;
 
 const targetSymbols = ['🐔', '🚨', '⚠️', '🇷🇺', '⚖️', '💼'];
 let currentTargetSymbol = '';
+
+function spawnSnakeFood(): void {
+  gameFood = {
+    x: Math.floor(Math.random() * gridSize),
+    y: Math.floor(Math.random() * gridSize)
+  };
+}
+
+function handleSnakeCrash(): void {
+  tg?.HapticFeedback?.notificationOccurred('error');
+  state.balance = -1000;
+  saveState();
+  const balanceText = document.getElementById('arrest-balance-text');
+  if (balanceText) balanceText.textContent = state.balance.toString();
+  alert('💥 Ты врезался! Прокурор выписал новый штраф, баланс снова -1000 🪙. Соберись!');
+  initSnakeGame();
+}
+
+function tickSnake(): void {
+  const canvas = document.getElementById('snakeCanvas') as HTMLCanvasElement;
+  if (!canvas) { clearInterval(snakeTimer); return; }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const head = {x: snake[0].x + snakeDir.x, y: snake[0].y + snakeDir.y};
+
+  if (head.x < 0 || head.x >= gridSize || head.y < 0 || head.y >= gridSize) {
+    handleSnakeCrash();
+    return;
+  }
+  for (let cell of snake) {
+    if (head.x === cell.x && head.y === cell.y) {
+      handleSnakeCrash();
+      return;
+    }
+  }
+
+  snake.unshift(head);
+
+  if (head.x === gameFood.x && head.y === gameFood.y) {
+    state.balance += 100;
+    saveState();
+    const balanceText = document.getElementById('arrest-balance-text');
+    if (balanceText) balanceText.textContent = state.balance.toString();
+    tg?.HapticFeedback?.impactOccurred('medium');
+    
+    if (state.balance >= 0) {
+      clearInterval(snakeTimer);
+      alert('Ты полностью отработал штраф в Змейке! Прокуратура уехала.');
+      clearLoanState();
+      return;
+    }
+    spawnSnakeFood();
+  } else {
+    snake.pop();
+  }
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  ctx.fillStyle = '#ef4444';
+  ctx.font = '12px serif';
+  ctx.fillText('💼', gameFood.x * 15 + 1, gameFood.y * 15 + 12);
+
+  snake.forEach((cell, idx) => {
+    if (idx === 0) {
+      ctx.fillStyle = '#22c55e';
+      ctx.font = '12px serif';
+      ctx.fillText('🐍', cell.x * 15 + 1, cell.y * 15 + 12);
+    } else {
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(cell.x * 15 + 1, cell.y * 15 + 1, 13, 13);
+    }
+  });
+}
+
+function initSnakeGame(): void {
+  snake = [{x: 7, y: 7}, {x: 6, y: 7}, {x: 5, y: 7}];
+  snakeDir = {x: 1, y: 0};
+  spawnSnakeFood();
+  
+  window.onkeydown = (e) => {
+    if (e.key === 'ArrowUp' && snakeDir.y === 0) snakeDir = {x: 0, y: -1};
+    if (e.key === 'ArrowDown' && snakeDir.y === 0) snakeDir = {x: 0, y: 1};
+    if (e.key === 'ArrowLeft' && snakeDir.x === 0) snakeDir = {x: -1, y: 0};
+    if (e.key === 'ArrowRight' && snakeDir.x === 0) snakeDir = {x: 1, y: 0};
+  };
+
+  document.getElementById('sk-up')?.addEventListener('click', () => { if(snakeDir.y === 0) snakeDir = {x: 0, y: -1}; });
+  document.getElementById('sk-down')?.addEventListener('click', () => { if(snakeDir.y === 0) snakeDir = {x: 0, y: 1}; });
+  document.getElementById('sk-left')?.addEventListener('click', () => { if(snakeDir.x === 0) snakeDir = {x: -1, y: 0}; });
+  document.getElementById('sk-right')?.addEventListener('click', () => { if(snakeDir.x === 0) snakeDir = {x: 1, y: 0}; });
+
+  if (snakeTimer) clearInterval(snakeTimer);
+  snakeTimer = setInterval(tickSnake, 200);
+}
 
 function showStreetBeggingInterface(): void {
   const slotContent = document.getElementById('tab-slot') as HTMLElement;
   slotContent.setAttribute('data-begging', 'true');
   slotContent.innerHTML = `
-    <div class="slot-machine" style="text-align: center; padding: 32px 16px;">
-      <h2 style="color: #ef4444; font-size: 22px;">ТЫ АРЕСТОВАН 🚨</h2>
-      <p style="margin: 12px 0; color: #aaa;">Баланс: <span id="arrest-balance-text">${state.balance}</span> 🪙. Крутить нельзя.</p>
-      <div id="street-no-text" style="color: #ef4444; font-size: 32px; font-weight: 900; min-height: 40px; margin: 10px 0;"></div>
-      <button id="btn-beg-street" class="spin-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 100%;">
+    <div class="slot-machine" style="text-align: center; padding: 16px;">
+      <h2 style="color: #ef4444; font-size: 20px; margin-bottom: 4px;">ТЫ АРЕСТОВАН 🚨</h2>
+      <p style="margin-bottom: 8px; color: #aaa; font-size: 14px;">Баланс: <span id="arrest-balance-text">${state.balance}</span> 🪙</p>
+      <div id="street-no-text" style="color: #ef4444; font-size: 28px; font-weight: 900; min-height: 34px;"></div>
+      <button id="btn-beg-street" class="spin-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); width: 100%; padding: 12px;">
         Попросить денег на улице 🧎‍♂️
       </button>
-      <div id="mini-game-box" style="display: none; margin-top: 24px; background: rgba(0,0,0,0.3); padding: 16px; border-radius: 12px; border: 1px solid #444;">
-        <p style="font-size: 14px; margin-bottom: 10px;"><b>ОТРАБОТКА ДОЛГА (+50 🪙 за клик)</b><br>Быстро лови правильные символы прокурора!</p>
-        <div id="mini-game-target" style="font-size: 48px; margin: 16px 0; height: 60px; cursor: pointer; user-select: none;">🐔</div>
+      <div id="mini-game-box" style="display: none; margin-top: 12px; background: #000; padding: 8px; border-radius: 12px; border: 2px solid #ef4444;">
+        <p style="font-size: 11px; margin-bottom: 6px; color: #f87171;"><b>ОТРАБОТКА ДОЛГА: СЪЕШЬ ПОВЕСТКИ (💼) ДО БАЛАНСА >= 0</b><br>Врезался — баланс сбрасывается в -1000!</p>
+        <canvas id="snakeCanvas" width="225" height="225" style="background: #111; display: block; margin: 0 auto; border: 1px solid #333;"></canvas>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 150px; margin: 10px auto 0;">
+          <div></div><button class="quick-bets button" id="sk-up" style="padding:8px;">▲</button><div></div>
+          <button class="quick-bets button" id="sk-left" style="padding:8px;">◀</button><div></div><button class="quick-bets button" id="sk-right" style="padding:8px;">▶</button>
+          <div></div><button class="quick-bets button" id="sk-down" style="padding:8px;">▼</button><div></div>
+        </div>
       </div>
     </div>
   `;
@@ -557,64 +637,34 @@ function showStreetBeggingInterface(): void {
     noText.textContent = 'НЕТ!';
     state.balance = -1000;
     saveState();
-    (document.getElementById('arrest-balance-text') as HTMLElement).textContent = state.balance.toString();
+    const balanceText = document.getElementById('arrest-balance-text');
+    if (balanceText) balanceText.textContent = state.balance.toString();
     tg?.HapticFeedback?.notificationOccurred('error');
     
     setTimeout(() => {
       const box = document.getElementById('mini-game-box') as HTMLElement;
       if(box) box.style.display = 'block';
       btnBegStreet.style.display = 'none';
-      startMiniGameRound();
+      initSnakeGame();
     }, 1200);
   });
 }
 
-function startMiniGameRound(): void {
-  const targetEl = document.getElementById('mini-game-target') as HTMLElement;
-  if (!targetEl) return;
-  currentTargetSymbol = targetSymbols[Math.floor(Math.random() * targetSymbols.length)];
-  targetEl.textContent = currentTargetSymbol;
-  
-  targetEl.onclick = () => {
-    state.balance += 50;
-    saveState();
-    const balanceText = document.getElementById('arrest-balance-text');
-    if (balanceText) balanceText.textContent = state.balance.toString();
-    tg?.HapticFeedback?.impactOccurred('light');
-    
-    if (state.balance >= 0) {
-      alert('Ты полностью отработал штраф на исправительных работах! Прокуратура уехала.');
-      clearLoanState();
-    } else {
-      startMiniGameRound();
-    }
-  };
-}
-
-function checkArrestOnLoad(): void {
-  if (state.underArrest) {
-    showStreetBeggingInterface();
-  } else if (state.activeLoan > 0 && state.loanTimeLeft > 0) {
-    startLoanCountdown();
-  }
-}
-
-btnGrannyEl.addEventListener('click', () => {
-  state.balance = DEFAULT_BALANCE;
-  state.inventory = {};
-  state.activeBonuses = [];
+function triggerProsecution(): void {
+  state.balance = -state.activeLoan;
+  state.underArrest = true;
   saveState();
   updateBalance();
-  loseOverlayEl.classList.add('hidden');
-  showResult('Взяли у бабки! Но больше так не делай 🎁', 'win');
-});
-
-btnGoLoanEl.addEventListener('click', () => {
-  loseOverlayEl.classList.add('hidden');
-  const loanTab = document.querySelector('.tab[data-tab="loans"]') as HTMLElement;
-  if (loanTab) loanTab.click();
-});
-
+  
+  prosecutorOverlay.classList.remove('hidden');
+  spinBtn.disabled = true;
+  document.querySelectorAll('.card button').forEach(b => (b as HTMLButtonElement).disabled = true);
+  
+  setTimeout(() => {
+    prosecutorOverlay.classList.add('hidden');
+    showStreetBeggingInterface();
+  }, 2500);
+}
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -646,6 +696,13 @@ document.getElementById('reset')?.addEventListener('click', () => {
     showResult('Всё сброшено! 🎁', 'win');
   }
 });
+function checkArrestOnLoad(): void {
+  if (state.underArrest) {
+    showStreetBeggingInterface();
+  } else if (state.activeLoan > 0 && state.loanTimeLeft > 0) {
+    startLoanCountdown();
+  }
+}
 
 updateBalance();
 renderShop();
