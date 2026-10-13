@@ -239,13 +239,19 @@ function renderShop() {
     const owned = state.inventory[item.id] || 0;
     const card = document.createElement('div');
     card.className = `card rarity-${item.rarity}`;
+    
+    let buttonText = 'Купить';
+    if (owned > 0) {
+      buttonText = 'Купить (у вас: ' + owned + ')';
+    }
+
     card.innerHTML = `
       <div class="icon">${item.icon}</div>
       <div class="name">${item.name}</div>
       <div class="desc">${item.desc}</div>
       <div class="price">${item.price} 🪙</div>
       <button class="buy" ${state.balance < item.price ? 'disabled' : ''}>
-        Купить${owned ? ` (у вас: ${owned})` : ''}
+        ${buttonText}
       </button>
     `;
     card.querySelector('button').addEventListener('click', () => buyItem(item));
