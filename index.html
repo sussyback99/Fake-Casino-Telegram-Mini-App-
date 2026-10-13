@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>🎰 Не настоящее казино</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🎰 Не настоящее казино</h1>
+      <div class="balance">
+        <span>Баланс:</span>
+        <span id="balance">1000</span> 🪙
+      </div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="slot">Слоты</button>
+        <button class="tab" data-tab="shop">Магазин</button>
+        <button class="tab" data-tab="inventory">Инвентарь</button>
+      </nav>
+    </header>
+
+    <section id="tab-slot" class="tab-content active">
+      <div class="slot-machine">
+        <div class="reels">
+          <div class="reel" id="reel1">🍒</div>
+          <div class="reel" id="reel2">🍋</div>
+          <div class="reel" id="reel3">⭐</div>
+        </div>
+        <div class="result" id="result">Нажмите «Крутить»!</div>
+      </div>
+
+      <div class="controls">
+        <label>
+          Ставка:
+          <input type="number" id="bet" value="10" min="1" max="100000" />
+        </label>
+        <div class="quick-bets">
+          <button data-bet="10">10</button>
+          <button data-bet="50">50</button>
+          <button data-bet="100">100</button>
+          <button data-bet="500">500</button>
+        </div>
+        <button id="spin" class="spin-btn">КРУТИТЬ 🎲</button>
+      </div>
+    </section>
+
+    <section id="tab-shop" class="tab-content">
+      <h2>🛒 Магазин</h2>
+      <p class="hint">Бонусы действуют до следующего вращения.</p>
+      <div id="shop-items" class="grid"></div>
+    </section>
+
+    <section id="tab-inventory" class="tab-content">
+      <h2>🎒 Инвентарь</h2>
+      <p class="hint">Активируйте предмет перед вращением.</p>
+      <div id="inventory-items" class="grid"></div>
+      <div id="active-bonus" class="active-bonus hidden"></div>
+    </section>
+
+    <footer>
+      <button id="reset" class="reset-btn">Сбросить всё</button>
+      <p class="disclaimer">⚠️ Игра без реальных ставок. Только для развлечения!</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
