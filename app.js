@@ -92,6 +92,8 @@ const prosecutorText = document.getElementById('prosecutor-text');
 const loseOverlayEl = document.getElementById('lose-overlay');
 const btnGrannyEl = document.getElementById('btn-granny');
 const btnGoLoanEl = document.getElementById('btn-go-loan');
+const copsOverlay = document.getElementById('cops-overlay');
+
 function updateBalance() {
   balanceEl.textContent = state.balance.toString();
   saveState();
@@ -659,23 +661,49 @@ document.addEventListener('click', (e) => {
 
 document.getElementById('reset')?.addEventListener('click', () => {
   if (confirm('Сбросить баланс, инвентарь и бонусы?')) {
-    state = { balance: DEFAULT_BALANCE, inventory: {}, activeBonuses: [], stats: { spins: 0, wins: 0, bestWin: 0 }, activeLoan: 0, loanTimeLeft: 0, underArrest: false };
+    let wasArrested = state.underArrest;
+    
+    if (loanTimer) clearInterval(loanTimer);
+    if (snakeTimer) clearInterval(snakeTimer);
+
+    state = { 
+      balance: DEFAULT_BALANCE, 
+      inventory: {}, 
+      activeBonuses: [], 
+      stats: { spins: 0, wins: 0, bestWin: 0 }, 
+      activeLoan: 0, 
+      loanTimeLeft: 0, 
+      underArrest: false,
+      prosecutorEscaped: wasArrested
+    };
+    
     saveState();
-    updateBalance();
-    renderShop();
-    renderInventory();
-    renderActiveBonus();
-    showResult('Всё сброшено! 🎁', 'win');
+    location.reload();
   }
 });
 
+
 function checkArrestOnLoad() {
+  if (state.prosecutorEscaped) {
+    state.balance = 50;
+    state.prosecutorEscaped = false;
+    saveState();
+    updateBalance();
+    
+    copsOverlay.classList.remove('hidden');
+    document.getElementById('btn-cops-ok')?.addEventListener('click', () => {
+      copsOverlay.classList.add('hidden');
+    });
+    return;
+  }
+
   if (state.underArrest) {
     showStreetBeggingInterface();
   } else if (state.activeLoan > 0 && state.loanTimeLeft > 0) {
     startLoanCountdown();
   }
 }
+
 
 updateBalance();
 renderShop();
