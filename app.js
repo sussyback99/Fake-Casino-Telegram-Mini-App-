@@ -109,6 +109,7 @@ function checkBankruptcy() {
   }
 }
 
+
 function pickSymbol(rareBoost = 1) {
   const weighted = SYMBOLS.map(s => {
     const isRare = ['💎', '👑', '7️⃣', '🎰'].includes(s.icon);
